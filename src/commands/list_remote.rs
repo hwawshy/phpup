@@ -1,5 +1,5 @@
 use super::{Command, Config};
-use crate::release;
+use crate::releases;
 use crate::version;
 use crate::version::Local;
 use crate::version::Version;
@@ -21,7 +21,7 @@ pub struct ListRemote {
 #[derive(Error, Debug)]
 pub enum Error {
     #[error(transparent)]
-    FailedFetchRelease(#[from] release::FetchError),
+    FailedFetchRelease(#[from] releases::FetchError),
 }
 
 impl Command for ListRemote {
@@ -54,7 +54,7 @@ impl Command for ListRemote {
         let current_version = Local::current(config);
 
         for query_version in query_versions {
-            let releases = release::fetch_all(query_version)?;
+            let releases = releases::release::fetch_all(query_version)?;
             let remote_versions = releases.keys();
 
             let remote_versions = if self.only_latest_patch {
