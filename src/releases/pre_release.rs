@@ -21,27 +21,72 @@ where
 }
 
 #[derive(Deserialize, Debug)]
-struct Response {
-    releases: HashMap<Version, PreRelease>,
+pub struct PreReleaseMap(HashMap<Version, PreRelease>);
+
+impl PreReleaseMap {
+    pub fn get_versions_included_by(&self, version: Version) -> impl Iterator<Item = &Version> {
+        self.0.values().filter_map(move |v| {
+            if version.includes(&v.version) {
+                Some(&v.version)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn get(&self, version: Version) -> Option<&PreRelease> {
+        let key = Self::build_key_from_pre_release_version(version);
+
+        match self.0.get(&key) {
+            Some(pr) if pr.version == version => Some(pr),
+            _ => None
+        }
+    }
+
+    pub fn remove(&mut self, version: Version) -> Option<PreRelease> {
+        let key = Self::build_key_from_pre_release_version(version);
+
+        match self.0.get(&key) {
+            Some(pr) if pr.version == version => self.0.remove(&key),
+            _ => None
+        }
+    }
+
+    fn build_key_from_pre_release_version(version: Version) -> Version {
+        assert!(
+            version.pre_type().is_some(),
+            "Version {} is not pre-release",
+            version
+        );
+
+        Version::from_numbers(
+            version.major_version(),
+            version.minor_version(),
+            version.patch_version(),
+            None,
+        )
+    }
 }
 
-pub fn fetch(version: Version) -> Result<PreRelease, FetchError> {
+#[derive(Deserialize, Debug)]
+struct Response {
+    releases: PreReleaseMap,
+}
+
+pub fn fetch_all() -> Result<PreReleaseMap, FetchError> {
     let url = "https://www.php.net/release-candidates.php?format=json";
     let json = curl::get_as_slice(url)?;
 
-    let mut resp: Response =
+    let resp: Response =
         serde_json::from_slice(&json).unwrap_or_else(|_| panic!("Can't parse json from {}", url));
 
-    let key = Version::from_numbers(
-        version.major_version(),
-        version.minor_version(),
-        version.patch_version(),
-        None,
-    );
+    Ok(resp.releases)
+}
 
-    resp.releases
-        .remove(&key)
-        .ok_or(FetchError::NotFoundRelease(version))
+pub fn fetch(version: Version) -> Result<PreRelease, FetchError> {
+    let mut releases = fetch_all()?;
+
+    releases.remove(version).ok_or(FetchError::NotFoundRelease(version))
 }
 
 impl PreRelease {
@@ -101,8 +146,7 @@ mod tests {
         assert!(resp.is_ok());
 
         let resp = resp.unwrap();
-        let key = &"8.5.0".parse().unwrap();
-        assert!(resp.releases.contains_key(key));
+        let key = "8.5.0RC1".parse().unwrap();
 
         let pre_release = resp.releases.get(key).unwrap();
         assert_eq!(
