@@ -24,8 +24,8 @@ where
 pub struct PreReleaseMap(HashMap<Version, PreRelease>);
 
 impl PreReleaseMap {
-    pub fn get_versions_included_by(&self, version: Version) -> impl Iterator<Item = &Version> {
-        self.0.values().filter_map(move |v| {
+    pub fn get_versions_included_by<'a>(&'a self, version: &'a Version) -> impl Iterator<Item = &'a Version> {
+        self.0.values().filter_map(|v| {
             if version.includes(&v.version) {
                 Some(&v.version)
             } else {
@@ -34,25 +34,25 @@ impl PreReleaseMap {
         })
     }
 
-    pub fn get(&self, version: Version) -> Option<&PreRelease> {
+    pub fn get(&self, version: &Version) -> Option<&PreRelease> {
         let key = Self::build_key_from_pre_release_version(version);
 
         match self.0.get(&key) {
-            Some(pr) if pr.version == version => Some(pr),
+            Some(pr) if &pr.version == version => Some(pr),
             _ => None
         }
     }
 
-    pub fn remove(&mut self, version: Version) -> Option<PreRelease> {
-        let key = Self::build_key_from_pre_release_version(version);
+    pub fn remove(&mut self, version: &Version) -> Option<PreRelease> {
+        let key = Self::build_key_from_pre_release_version(&version);
 
         match self.0.get(&key) {
-            Some(pr) if pr.version == version => self.0.remove(&key),
+            Some(pr) if &pr.version == version => self.0.remove(&key),
             _ => None
         }
     }
 
-    fn build_key_from_pre_release_version(version: Version) -> Version {
+    fn build_key_from_pre_release_version(version: &Version) -> Version {
         assert!(
             version.pre_type().is_some(),
             "Version {} is not pre-release",
@@ -86,7 +86,7 @@ pub fn fetch_all() -> Result<PreReleaseMap, FetchError> {
 pub fn fetch(version: Version) -> Result<PreRelease, FetchError> {
     let mut releases = fetch_all()?;
 
-    releases.remove(version).ok_or(FetchError::NotFoundRelease(version))
+    releases.remove(&version).ok_or(FetchError::NotFoundRelease(version))
 }
 
 impl PreRelease {
@@ -148,7 +148,7 @@ mod tests {
         let resp = resp.unwrap();
         let key = "8.5.0RC1".parse().unwrap();
 
-        let pre_release = resp.releases.get(key).unwrap();
+        let pre_release = resp.releases.get(&key).unwrap();
         assert_eq!(
             pre_release.version,
             Version::from_numbers(8, Some(5), Some(0), Some((PreType::Rc, 1)))

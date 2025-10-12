@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use super::{Command, Config};
 use crate::releases;
 use crate::version;
@@ -6,6 +5,7 @@ use crate::version::Local;
 use crate::version::Version;
 use colored::Colorize;
 use itertools::Itertools;
+use std::collections::BTreeSet;
 use thiserror::Error;
 
 #[derive(clap::Parser, Debug)]
@@ -57,13 +57,15 @@ impl Command for ListRemote {
 
         for query_version in query_versions {
             let remote_versions = if query_version.pre_type().is_some() {
-                match pre_releases.get(query_version) {
+                match pre_releases.get(&query_version) {
                     Some(v) => Ok(vec![v.version]),
-                    None => Err(releases::FetchError::NotFoundRelease(query_version))
+                    None => Err(releases::FetchError::NotFoundRelease(query_version)),
                 }
             } else {
                 let releases = releases::release::fetch_all(query_version);
-                let pre_release_keys = pre_releases.get_versions_included_by(query_version).sorted();
+                let pre_release_keys = pre_releases
+                    .get_versions_included_by(&query_version)
+                    .sorted();
                 match releases {
                     Ok(r) => {
                         let mut keys: BTreeSet<Version> = r.keys().copied().collect();
@@ -73,11 +75,9 @@ impl Command for ListRemote {
                         } else {
                             Ok(keys.iter().copied().collect_vec())
                         }
-                    },
-                    Err(_) if pre_release_keys.len() > 0 => {
-                        Ok(pre_release_keys.copied().collect())
                     }
-                    Err(e) => Err(e)
+                    Err(_) if pre_release_keys.len() > 0 => Ok(pre_release_keys.copied().collect()),
+                    Err(e) => Err(e),
                 }
             }?;
 
